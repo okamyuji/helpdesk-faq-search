@@ -37,7 +37,7 @@ JaGovFaqs-22kから無作為に選んだ100件について、元の質問文を�
 | Amazon Rerank 1.0（Bedrock） | 0.81 | 0.70 | 0.56秒 | 2.16秒 |
 | Cohere Rerank 3.5（Bedrock） | 0.83 | 0.77 | 0.20秒 | 0.34秒 |
 
-`ruri-v3-reranker-310m`の精度は、Apple SiliconのMPSで計算したものです。TEIでのCPUの応答時間は、実際のFAQの全文30件をColimaの4 CPUで並べ替えて測りました。候補を10件に減らし、文を300字に切っても4.2秒かかりました。準備中の最大メモリも6.16GiBありました。
+`ruri-v3-reranker-310m`の精度は、Apple SiliconのMPSで計算したものです。TEIでのCPUの応答時間は、実際のFAQの全文30件をColimaの4 CPUで並べ替えて測りました。候補を10件に減らし、文を300字に切っても4.2秒かかりました。準備中の最大メモリも6.16GiBありました。このときTEIは`onnx/model.onnx`がないためONNXの実行方式を使えず、candleの実装で動いていました。ONNXに変換した場合とFargateでの時間は測っていません。
 
 LLMによる選び直しは入れません。理由は[0011](0011-haiku-selection.md)のとおりです。
 
