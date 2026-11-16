@@ -25,7 +25,7 @@ import (
 )
 
 type cfg struct {
-	DatabaseURL, TEIURL, RerankARN, Model, Addr, Region, HelpdeskURL, Source string
+	DatabaseURL, TEIURL, RerankARN, Model, Addr, Region, HelpdeskURL, Source, Paraphrases string
 }
 
 var (
@@ -42,7 +42,8 @@ func loadConfig(getenv func(string) string, required []string) (cfg, error) {
 	}
 	c := cfg{DatabaseURL: getenv("DATABASE_URL"), TEIURL: getenv("TEI_EMBED_URL"), RerankARN: getenv("RERANK_MODEL_ARN"),
 		Model: or("EMBEDDING_MODEL", "ruri-v3-30m"), Addr: or("LISTEN_ADDR", ":8080"), Region: or("AWS_REGION", "ap-northeast-1"),
-		HelpdeskURL: or("HELPDESK_URL", "mailto:helpdesk@example.com"), Source: or("DATA_SOURCE", load.DefaultSource)}
+		HelpdeskURL: or("HELPDESK_URL", "mailto:helpdesk@example.com"), Source: or("DATA_SOURCE", load.DefaultSource),
+		Paraphrases: or("EVAL_PARAPHRASES", "eval/paraphrases.tsv")}
 	for _, k := range required {
 		if getenv(k) == "" {
 			return c, fmt.Errorf("%s is required", k)

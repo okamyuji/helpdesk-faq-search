@@ -117,7 +117,7 @@ func TestVectorQueryUsesHNSWIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	var plan strings.Builder
-	rows, err := conn.Query(ctx, "EXPLAIN "+vectorSQL(256), model, pgvector.NewVector(at(0)), 10)
+	rows, err := conn.Query(ctx, "EXPLAIN "+vectorSQL(256, "qa_doc"), model, pgvector.NewVector(at(0)), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestVectorQueryUsesHNSWIndex(t *testing.T) {
 
 func TestVectorReturnsMoreThanEfSearchDefault(t *testing.T) {
 	db := seed(t, 120, plain)
-	got, err := vectorIDs(context.Background(), Deps{DB: db, Embed: &fakeEmbed{}}, model, "q", rrfDepth)
+	got, err := Vector(context.Background(), Deps{DB: db, Embed: &fakeEmbed{}}, model, "qa_doc", "q", rrfDepth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,5 +263,11 @@ func TestUnknownMethodReturnsError(t *testing.T) {
 func TestLongQueryIsTruncatedTo200Runes(t *testing.T) {
 	if got := Clean(strings.Repeat("あ", 10_000)); len([]rune(got)) != MaxQueryRunes {
 		t.Fatalf("len = %d, want %d", len([]rune(got)), MaxQueryRunes)
+	}
+}
+
+func TestVectorRejectsUnknownField(t *testing.T) {
+	if _, err := Vector(context.Background(), Deps{Embed: &fakeEmbed{}}, model, "x' OR '1'='1", "q", 10); err == nil {
+		t.Fatal("want an error for a field outside store.Fields")
 	}
 }

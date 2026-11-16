@@ -19,26 +19,26 @@ func run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		return 2
 	}
 	switch args[0] {
-	case "serve", "load":
-		required := map[string][]string{"serve": serveRequired, "load": loadRequired}[args[0]]
+	case "serve", "load", "eval":
+		required := map[string][]string{"serve": serveRequired, "load": loadRequired, "eval": serveRequired}[args[0]]
 		cfg, err := loadConfig(getenv, required)
 		if err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			return 2
 		}
-		if args[0] == "serve" {
+		switch args[0] {
+		case "serve":
 			err = serve(cfg)
-		} else {
+		case "load":
 			err = loadAll(cfg, stdout)
+		default:
+			err = evalAll(cfg, stdout)
 		}
 		if err != nil {
 			_, _ = fmt.Fprintln(stderr, err)
 			return 1
 		}
 		return 0
-	case "eval":
-		_, _ = fmt.Fprintf(stderr, "%s: not implemented\n", args[0])
-		return 1
 	default:
 		_, _ = fmt.Fprintln(stderr, usage)
 		return 2

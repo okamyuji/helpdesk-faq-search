@@ -2,3 +2,5 @@ sentence-transformers==5.1.2
 protobuf==6.33.1
 sentencepiece==0.2.1
 requests==2.32.5
+anthropic==2.8.0
+psycopg[binary]==3.2.12

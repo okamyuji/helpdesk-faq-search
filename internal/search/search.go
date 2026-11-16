@@ -99,7 +99,7 @@ func Run(ctx context.Context, d Deps, method, model, q string) (Result, error) {
 func rank(ctx context.Context, d Deps, res *Result, method, model, q string) ([]int, error) {
 	switch method {
 	case "vector":
-		return timed(res, "vector", func() ([]int, error) { return vectorIDs(ctx, d, model, q, shown) })
+		return timed(res, "vector", func() ([]int, error) { return Vector(ctx, d, model, "qa_doc", q, shown) })
 	case "keyword":
 		return timed(res, "keyword", func() ([]int, error) { return keywordIDs(ctx, d.DB, q, shown) })
 	case "rrf":
@@ -107,13 +107,13 @@ func rank(ctx context.Context, d Deps, res *Result, method, model, q string) ([]
 		if err != nil {
 			return nil, err
 		}
-		vec, err := timed(res, "vector", func() ([]int, error) { return vectorIDs(ctx, d, model, q, rrfDepth) })
+		vec, err := timed(res, "vector", func() ([]int, error) { return Vector(ctx, d, model, "qa_doc", q, rrfDepth) })
 		if err != nil {
 			return nil, err
 		}
 		return fuse(kw, vec), nil
 	}
-	cand, err := timed(res, "vector", func() ([]int, error) { return vectorIDs(ctx, d, model, q, candidates) })
+	cand, err := timed(res, "vector", func() ([]int, error) { return Vector(ctx, d, model, "qa_doc", q, candidates) })
 	if err != nil {
 		return nil, err
 	}
@@ -133,10 +133,14 @@ func timed(res *Result, stage string, f func() ([]int, error)) ([]int, error) {
 	return ids, err
 }
 
-func vectorIDs(ctx context.Context, d Deps, model, q string, k int) ([]int, error) {
+// Vector returns the k FAQs whose field embedding is nearest to q. field is qa_doc for search and answer_doc for evaluation.
+func Vector(ctx context.Context, d Deps, model, field, q string, k int) ([]int, error) {
 	dim, err := store.Dim(model)
 	if err != nil {
 		return nil, err
+	}
+	if !slices.Contains(store.Fields, field) {
+		return nil, fmt.Errorf("unknown field %q", field)
 	}
 	vecs, err := d.Embed.Embed(ctx, embed.PrefixQuery, []string{q})
 	if err != nil {
@@ -148,16 +152,17 @@ func vectorIDs(ctx context.Context, d Deps, model, q string, k int) ([]int, erro
 		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL hnsw.ef_search = %d", max(k, 40))); err != nil {
 			return err
 		}
-		ids, err = queryIDs(ctx, tx, vectorSQL(dim), model, pgvector.NewVector(vecs[0]), k)
+		ids, err = queryIDs(ctx, tx, vectorSQL(dim, field), model, pgvector.NewVector(vecs[0]), k)
 		return err
 	})
 	return ids, err
 }
 
 // vectorSQL casts to the model's dimension to match the partial HNSW index; without it PostgreSQL scans every row.
-func vectorSQL(dim int) string {
-	return fmt.Sprintf(`SELECT faq_id FROM embeddings WHERE model_id = $1 AND field = 'qa_doc'
-ORDER BY embedding::vector(%d) <=> $2::vector(%d) LIMIT $3`, dim, dim)
+// The field is a literal so the planner can match the partial index; callers pass only values from store.Fields.
+func vectorSQL(dim int, field string) string {
+	return fmt.Sprintf(`SELECT faq_id FROM embeddings WHERE model_id = $1 AND field = '%s'
+ORDER BY embedding::vector(%d) <=> $2::vector(%d) LIMIT $3`, field, dim, dim)
 }
 
 func keywordIDs(ctx context.Context, db *pgxpool.Pool, q string, k int) ([]int, error) {
