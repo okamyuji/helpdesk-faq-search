@@ -75,7 +75,7 @@ func TestReadParaphrases(t *testing.T) {
 	if err != nil || len(ps) != 2 || ps[0] != (Paraphrase{110, "口語", "短い 語"}) {
 		t.Fatalf("ps = %+v, err = %v", ps, err)
 	}
-	for _, bad := range []string{"1\ta\tb\nx\ta\tb\n", "1\ta\tb\n1\tonly two\n"} {
+	for _, bad := range []string{"1\ta\tb\nx\ta\tb\n", "1\ta\tb\n1\tonly two\n", "1\ta\tb\n1\ta\tb\textra\n"} {
 		if _, err := ReadParaphrases(strings.NewReader(bad)); err == nil || !strings.Contains(err.Error(), "line 2") {
 			t.Errorf("%q: err = %v", bad, err)
 		}
