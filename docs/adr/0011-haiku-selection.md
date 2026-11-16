@@ -6,7 +6,7 @@
 
 LLMに回答文を作らせない方針は[0007](0007-no-rag.md)のとおりです。そのうえで、LLMの役割を候補の選別に限れば、少ない費用で精度を上げられるかを確かめました。
 
-rerankerで並べ替えた上位10件の質問と回答の全文、それに問い合わせを[Claude Haiku 5.5](https://platform.claude.com/docs/en/about-claude/models/overview)に渡し、問い合わせに答えている候補の番号を最大3件だけ返させました。回答文は書かせていません。出力は構造化出力で番号の配列に限り、思考は切り、`effort`は`low`にしました。計測はClaude APIで行いました。入力は[0012](0012-ranking.md)と同じ言い換え100件の2種類です。
+rerankerで並べ替えた上位10件の質問と回答の全文、それに問い合わせを[Claude Haiku 5.5](https://platform.claude.com/docs/en/about-claude/models/overview)に渡し、問い合わせに答えている候補の番号を最大3件だけ返させました。回答文は書かせていません。出力は構造化出力で番号の配列に限り、思考は切り、`effort`は`low`にしました。計測はAnthropicのClaude API（モデルID `claude-haiku-5-5`）で行い、スクリプトは`scripts/haiku_eval.py`に置きます。入力は[0012](0012-ranking.md)と同じ言い換え100件の2種類です。
 
 Haikuに2つの役割を試しました。ここでのrerankerは`ruri-v3-reranker-310m`です。
 
