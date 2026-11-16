@@ -32,6 +32,10 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
 }
 
 resource "aws_security_group" "app" {
@@ -58,9 +62,18 @@ resource "aws_security_group" "db" {
   }
 }
 
+# RDS needs subnets in two AZs; this account's default VPC has a subnet in only one, so this adds a second.
+resource "aws_subnet" "db_second_az" {
+  vpc_id                  = data.aws_vpc.default.id
+  availability_zone       = var.db_second_az
+  cidr_block              = var.db_second_az_cidr
+  map_public_ip_on_launch = false
+  tags                    = { Name = "${local.name}-db" }
+}
+
 resource "aws_db_subnet_group" "db" {
   name       = local.name
-  subnet_ids = data.aws_subnets.default.ids
+  subnet_ids = concat(data.aws_subnets.default.ids, [aws_subnet.db_second_az.id])
 }
 
 resource "aws_db_instance" "db" {

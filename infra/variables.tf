@@ -67,3 +67,15 @@ variable "rerank_model_id" {
   type    = string
   default = "cohere.rerank-v3-5:0"
 }
+
+variable "db_second_az" {
+  description = "An AZ the default VPC has no subnet in."
+  type        = string
+  default     = "ap-northeast-1a"
+}
+
+variable "db_second_az_cidr" {
+  description = "A free range inside the default VPC (172.31.0.0/16)."
+  type        = string
+  default     = "172.31.240.0/24"
+}
