@@ -1,0 +1,6 @@
+docs/superpowers/
+/bin/
+*.tfstate*
+.terraform/
+.venv/
+.superpowers/
