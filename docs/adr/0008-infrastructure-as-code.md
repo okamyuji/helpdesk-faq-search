@@ -13,4 +13,6 @@ Terraform 1.17.2とAWS provider 6.73.0で管理します。DBのパスワード�
 ## 影響
 
 - `terraform destroy`で検証環境を一度に消せます。
+- 最終スナップショットを残さずに消すには、先に`terraform apply -var skip_final_snapshot=true`で状態に反映してから`destroy`します。`destroy`は状態に保存された値で削除するので、`destroy`にだけ変数を渡しても最終スナップショットが残ります。
+- `destroy`のあとも、登録を解除したECSのタスク定義が`INACTIVE`として残ります。`aws ecs delete-task-definitions`で消します。
 - Node.jsの実行環境は要りません。

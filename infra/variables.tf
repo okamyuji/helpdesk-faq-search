@@ -47,7 +47,7 @@ variable "restore_snapshot_id" {
 }
 
 variable "skip_final_snapshot" {
-  description = "true only for the final destroy, so nothing is left behind."
+  description = "Set true with `terraform apply` before the final destroy; destroy reads the value from state, so passing it to destroy alone still leaves a final snapshot."
   type        = bool
   default     = false
 }
