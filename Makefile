@@ -6,6 +6,17 @@ REV_ruri-v3-reranker-310m := bb46934ee9ed09f850b9fcff17501b3ef7ddb2b3
 FILES_ruri-v3-reranker-310m := config.json model.safetensors tokenizer.json tokenizer.model tokenizer_config.json special_tokens_map.json
 VENV ?= .venv
 
+# testcontainers cannot find Colima's socket on its own; the osxkeychain helper also hangs non-interactive runs.
+ifneq ($(wildcard $(HOME)/.colima/default/docker.sock),)
+export DOCKER_HOST := unix://$(HOME)/.colima/default/docker.sock
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE := /var/run/docker.sock
+export DOCKER_AUTH_CONFIG := {"auths":{}}
+endif
+
+.PHONY: pg-image
+pg-image:
+	docker build -q -t ics-pg:18.6 testdata/pg >/dev/null
+
 .PHONY: tei-image tei-parity
 tei-image:
 	docker build --platform linux/arm64 --build-arg MODEL=$(MODEL) --build-arg REVISION=$(REV_$(MODEL)) $(if $(FILES_$(MODEL)),--build-arg FILES="$(FILES_$(MODEL))") -t ics-tei:$(MODEL) docker/tei
@@ -19,7 +30,7 @@ tei-parity: tei-image
 	$(VENV)/bin/python -I scripts/tei_parity.py $(MODEL) http://localhost:18080; rc=$$?; docker rm -f ics-tei-parity >/dev/null; exit $$rc
 
 .PHONY: check
-check:
+check: pg-image
 	test -z "$$(gofmt -l .)"
 	go vet ./...
 	golangci-lint run ./...
