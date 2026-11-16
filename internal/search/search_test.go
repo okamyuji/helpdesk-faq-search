@@ -351,3 +351,10 @@ func TestVectorRejectsUnknownField(t *testing.T) {
 		t.Fatal("want an error for a field outside store.Fields")
 	}
 }
+
+// vectorSQL puts the model into the SQL text, so Vector must reject anything store.Dim does not know.
+func TestVectorRejectsUnknownModel(t *testing.T) {
+	if _, err := Vector(context.Background(), Deps{Embed: &fakeEmbed{}}, "x' OR '1'='1", "qa_doc", "q", 10); err == nil {
+		t.Fatal("want an error for a model store.Dim does not know")
+	}
+}

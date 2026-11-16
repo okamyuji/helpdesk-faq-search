@@ -95,7 +95,7 @@ resource "aws_db_instance" "db" {
   backup_retention_period     = 0
   skip_final_snapshot         = var.skip_final_snapshot
   # A restored database must not reuse the snapshot name it came from, or the next destroy fails with DBSnapshotAlreadyExists.
-  final_snapshot_identifier    = "${local.name}-final-${substr(md5(var.restore_snapshot_id), 0, 8)}"
+  final_snapshot_identifier    = "${local.name}-final-${substr(md5(coalesce(var.restore_snapshot_id, "new")), 0, 8)}"
   apply_immediately            = true
   auto_minor_version_upgrade   = false
   copy_tags_to_snapshot        = true
