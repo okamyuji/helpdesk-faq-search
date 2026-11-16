@@ -1,0 +1,69 @@
+variable "region" {
+  type    = string
+  default = "ap-northeast-1"
+}
+
+variable "embedding_model" {
+  type    = string
+  default = "ruri-v3-30m"
+  validation {
+    condition     = contains(["ruri-v3-30m", "ruri-v3-130m", "ruri-v3-310m"], var.embedding_model)
+    error_message = "embedding_model must be ruri-v3-30m, ruri-v3-130m or ruri-v3-310m."
+  }
+}
+
+variable "app_image_tag" {
+  type    = string
+  default = "latest"
+}
+
+variable "app_desired_count" {
+  description = "0 stops the service between measurements (ADR 0006)."
+  type        = number
+  default     = 0
+}
+
+# 30m needs 1.88GiB at TEI start-up (ADR 0003); 310m needs 5.79GiB.
+variable "task_cpu" {
+  type    = number
+  default = 1024
+}
+
+variable "task_memory" {
+  type    = number
+  default = 3072
+}
+
+variable "db_enabled" {
+  description = "false deletes the RDS instance (ADR 0006)."
+  type        = bool
+  default     = true
+}
+
+variable "restore_snapshot_id" {
+  description = "Restore RDS from this snapshot instead of creating an empty database."
+  type        = string
+  default     = null
+}
+
+variable "skip_final_snapshot" {
+  description = "true only for the final destroy, so nothing is left behind."
+  type        = bool
+  default     = false
+}
+
+variable "budget_limit_usd" {
+  type    = number
+  default = 30
+}
+
+variable "budget_emails" {
+  description = "Empty creates the budget without email alerts."
+  type        = list(string)
+  default     = []
+}
+
+variable "rerank_model_id" {
+  type    = string
+  default = "cohere.rerank-v3-5:0"
+}
