@@ -28,7 +28,9 @@
 | `ics load` | FAQを読み込み、埋め込みを計算して保存する | `DATABASE_URL`, `TEI_EMBED_URL` |
 | `ics eval` | 言い換えた問い合わせで検索の質を測る | `DATABASE_URL`, `TEI_EMBED_URL`, `RERANK_MODEL_ARN` |
 
-任意の環境変数は`EMBEDDING_MODEL`（既定`ruri-v3-30m`）、`LISTEN_ADDR`、`AWS_REGION`、`HELPDESK_URL`、`DATA_SOURCE`、`EVAL_PARAPHRASES`です。
+任意の環境変数は`EMBEDDING_MODEL`（既定`ruri-v3-30m`）、`LISTEN_ADDR`（既定`:8080`）、`AWS_REGION`、`HELPDESK_URL`、`DATA_SOURCE`、`EVAL_PARAPHRASES`です。
+
+画面には認証がありません。手元で`ics serve`を動かすときは`LISTEN_ADDR=127.0.0.1:8080`のように手元だけで待ち受けてください。
 
 ## 開発
 
@@ -50,9 +52,12 @@ Colimaを使う場合は、`make`がColimaのソケットを`DOCKER_HOST`に設�
 
 ```sh
 cd infra
-terraform apply
+terraform init
+terraform apply -var 'budget_emails=["you@example.com"]'
 terraform destroy -var skip_final_snapshot=true   # 最終スナップショットを残さずに消す
 ```
+
+予算の通知は、`budget_emails`に宛先を渡したときだけ作られます。
 
 RDSには2つのアベイラビリティゾーンのサブネットが要ります。
 既定のVPCに足りないときのために、`db_second_az`と`db_second_az_cidr`でサブネットを1つ足します。
