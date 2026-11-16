@@ -4,3 +4,9 @@ docs/superpowers/
 .terraform/
 .venv/
 .superpowers/
+
+# The FAQ dataset is downloaded from Hugging Face, not committed.
+data.jsonl
+/data/
+/eval-out/
+/ics
