@@ -258,7 +258,7 @@ resource "aws_budgets_budget" "monthly" {
   time_unit    = "MONTHLY"
   cost_filter {
     name   = "TagKeyValue"
-    values = ["user:Project$${local.name}"]
+    values = [join("$", ["user:Project", local.name])]
   }
   dynamic "notification" {
     for_each = length(var.budget_emails) > 0 ? [{ t = 80, k = "ACTUAL" }, { t = 100, k = "ACTUAL" }, { t = 100, k = "FORECASTED" }] : []
