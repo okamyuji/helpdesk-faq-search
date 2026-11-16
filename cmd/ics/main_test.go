@@ -8,7 +8,7 @@ import (
 
 func TestRunUnknownSubcommandReturns2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if got := run([]string{"nope"}, &stdout, &stderr); got != 2 {
+	if got := run([]string{"nope"}, env(nil), &stdout, &stderr); got != 2 {
 		t.Fatalf("exit = %d, want 2", got)
 	}
 	if !strings.Contains(stderr.String(), "usage: ics serve|load|eval") {
@@ -18,7 +18,7 @@ func TestRunUnknownSubcommandReturns2(t *testing.T) {
 
 func TestRunNoArgsReturns2(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if got := run(nil, &stdout, &stderr); got != 2 {
+	if got := run(nil, env(nil), &stdout, &stderr); got != 2 {
 		t.Fatalf("exit = %d, want 2", got)
 	}
 	if !strings.Contains(stderr.String(), "usage: ics serve|load|eval") {

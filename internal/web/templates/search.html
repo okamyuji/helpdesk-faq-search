@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>よくある質問の検索</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.7; color: #1f2328; background: #fff; }
+  form { display: flex; gap: .5rem; flex-wrap: wrap; }
+  input[name=q] { flex: 1 1 20rem; padding: .5rem; font-size: 1rem; }
+  ol { padding-left: 1.5rem; }
+  li { margin: 1.25rem 0; }
+  .q { font-weight: 600; }
+  .a { white-space: pre-line; }
+  .src, .meta { font-size: .85rem; color: #59636e; }
+  .notice { background: #fff8c5; padding: .5rem .75rem; }
+  .error { background: #ffebe9; padding: .5rem .75rem; }
+  .helpdesk { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #d1d9e0; }
+</style>
+</head>
+<body>
+<h1>よくある質問の検索</h1>
+<form method="get" action="/">
+  <label for="q" hidden>問い合わせ</label>
+  <input id="q" name="q" value="{{.Query}}" placeholder="例: パソコンのパスワードを忘れた" autofocus>
+  <label>方式
+    <select name="method">{{range .Methods}}<option value="{{.}}"{{if eq . $.Method}} selected{{end}}>{{.}}</option>{{end}}</select>
+  </label>
+  <button type="submit">検索</button>
+</form>
+<p class="meta">埋め込みモデル: {{.Model}}</p>
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+{{if .RerankFailed}}<p class="notice" role="status">並べ替えに失敗したため、ベクトル検索の順位を表示しています。</p>{{end}}
+{{if .Searched}}
+  {{if .Items}}
+  <ol>
+    {{range .Items}}
+    <li>
+      <div class="q">{{.Question}}</div>
+      <div class="a">{{.Answer}}{{if .Truncated}}…{{end}}</div>
+      <div class="src">出典: {{.Agency}}「よくある質問」 <a href="{{.URL}}">{{.URL}}</a></div>
+    </li>
+    {{end}}
+  </ol>
+  {{else if not .Error}}<p>該当するよくある質問が見つかりませんでした。</p>{{end}}
+  <p class="helpdesk">該当する回答がなければ、<a href="{{.HelpdeskURL}}">問い合わせ窓口</a>へご連絡ください。</p>
+  <p class="meta">応答 {{range $i, $t := .Timings}}{{if $i}} / {{end}}{{$t}}{{end}}</p>
+{{end}}
+<p class="meta">データ: <a href="https://huggingface.co/datasets/matsuxr/JaGovFaqs-22k">JaGovFaqs-22k</a>（CC BY 4.0）</p>
+</body>
+</html>
