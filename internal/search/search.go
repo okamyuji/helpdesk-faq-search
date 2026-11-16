@@ -30,9 +30,11 @@ const (
 	// MaxQueryRunes caps the query; longer input is cut, not rejected.
 	MaxQueryRunes = 200
 	shown         = 10
-	candidates    = 30  // what the reranker sees (ADR 0012)
-	rrfDepth      = 100 // per list before fusing
-	rrfK          = 60
+	candidates    = 30 // what the reranker sees (ADR 0012)
+	// maxTerms caps the keyword terms; each term is one more LIKE over the matching rows.
+	maxTerms = 10
+	rrfDepth = 100 // per list before fusing
+	rrfK     = 60
 )
 
 // Embedder turns texts into vectors.
@@ -64,9 +66,9 @@ type Result struct {
 	Errors map[string]error
 }
 
-// Clean trims the query and cuts it to MaxQueryRunes.
+// Clean drops NUL (PostgreSQL text cannot hold it), trims the query and cuts it to MaxQueryRunes.
 func Clean(q string) string {
-	r := []rune(strings.TrimSpace(q))
+	r := []rune(strings.TrimSpace(strings.ReplaceAll(q, "\x00", "")))
 	return string(r[:min(len(r), MaxQueryRunes)])
 }
 
@@ -166,17 +168,25 @@ ORDER BY embedding::vector(%d) <=> $2::vector(%d) LIMIT $3`, field, dim, dim)
 }
 
 func keywordIDs(ctx context.Context, db *pgxpool.Pool, q string, k int) ([]int, error) {
-	terms := strings.Fields(textnorm.NFKC(q))
-	parts := make([]string, len(terms))
+	var terms []string
+	for _, t := range strings.Fields(textnorm.NFKC(q)) {
+		if len(terms) < maxTerms && !slices.Contains(terms, t) {
+			terms = append(terms, t)
+		}
+	}
+	match := make([]string, len(terms))
+	score := make([]string, len(terms))
 	args := make([]any, len(terms)+1)
 	for i, t := range terms {
 		// likequery escapes % and _ so they match themselves.
-		parts[i] = fmt.Sprintf("(qa_norm LIKE likequery($%d))::int", i+1)
+		match[i] = fmt.Sprintf("qa_norm LIKE likequery($%d)", i+1)
+		score[i] = "(" + match[i] + ")::int"
 		args[i] = t
 	}
 	args[len(terms)] = k
-	hits := strings.Join(parts, " + ")
-	sql := fmt.Sprintf(`SELECT faq_id FROM faqs WHERE %s > 0 ORDER BY %s DESC, faq_id LIMIT $%d`, hits, hits, len(terms)+1)
+	// The OR of plain LIKEs lets the planner use the pg_bigm GIN index; the score is computed once per matching row.
+	sql := fmt.Sprintf(`SELECT faq_id FROM (SELECT faq_id, %s AS s FROM faqs WHERE %s) m ORDER BY s DESC, faq_id LIMIT $%d`,
+		strings.Join(score, " + "), strings.Join(match, " OR "), len(terms)+1)
 	return queryIDs(ctx, db, sql, args...)
 }
 

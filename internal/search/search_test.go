@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -187,8 +188,69 @@ func TestKeywordTreatsPercentLiterally(t *testing.T) {
 	if !slices.Equal(ids(r), []int{0}) {
 		t.Fatalf("ids = %v, want only the FAQ that contains 10%%", ids(r))
 	}
-	if r, _ := Run(context.Background(), Deps{DB: db}, "keyword", model, "1_0"); !slices.Equal(ids(r), []int{}) {
+	r, err = Run(context.Background(), Deps{DB: db}, "keyword", model, "1_0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids(r), []int{}) {
 		t.Fatalf("_ must not match any character, got %v", ids(r))
+	}
+}
+
+func TestKeywordCountsRepeatedTermOnceAndBreaksTiesByID(t *testing.T) {
+	db := seed(t, 2, func(i int) (string, string) {
+		return []string{"VPNの接続", "パスワードの変更"}[i], "回答"
+	})
+	// An UPDATE writes a new row version at the end, so a scan meets FAQ 1 first; only ORDER BY faq_id puts 0 first.
+	if _, err := db.Exec(context.Background(), "UPDATE faqs SET qa_norm = qa_norm WHERE faq_id = 0"); err != nil {
+		t.Fatal(err)
+	}
+	// Counted three times, the repeated term would put FAQ 1 first; counted once, both score 1 and the lower id wins.
+	r, err := Run(context.Background(), Deps{DB: db}, "keyword", model, "パスワード パスワード パスワード VPN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids(r), []int{0, 1}) {
+		t.Fatalf("ids = %v, want [0 1] (one point each, tie broken by id)", ids(r))
+	}
+}
+
+func TestKeywordUsesOnlyTheFirstMaxTerms(t *testing.T) {
+	db := seed(t, 1, func(int) (string, string) { return "末尾の語", "回答" })
+	q := unrelated(maxTerms) + "末尾"
+	r, err := Run(context.Background(), Deps{DB: db}, "keyword", model, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids(r), []int{}) {
+		t.Fatalf("ids = %v, want none: the term after the first %d distinct terms is ignored", ids(r), maxTerms)
+	}
+	r, err = Run(context.Background(), Deps{DB: db}, "keyword", model, unrelated(maxTerms-1)+"末尾")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids(r), []int{0}) {
+		t.Fatalf("ids = %v, want [0]: the %dth distinct term is used", ids(r), maxTerms)
+	}
+}
+
+// unrelated returns n distinct terms that match no FAQ.
+func unrelated(n int) string {
+	var b strings.Builder
+	for i := range n {
+		fmt.Fprintf(&b, "無関係%d ", i)
+	}
+	return b.String()
+}
+
+func TestKeywordIgnoresNUL(t *testing.T) {
+	db := seed(t, 1, func(int) (string, string) { return "VPNの接続", "回答" })
+	r, err := Run(context.Background(), Deps{DB: db}, "keyword", model, "VP\x00N")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids(r), []int{0}) {
+		t.Fatalf("ids = %v, want [0]", ids(r))
 	}
 }
 
