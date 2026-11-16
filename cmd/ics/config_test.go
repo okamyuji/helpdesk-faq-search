@@ -14,7 +14,7 @@ func full() map[string]string {
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
-	c, err := loadConfig(env(full()))
+	c, err := loadConfig(env(full()), serveRequired)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 func TestLoadConfigReadsOverrides(t *testing.T) {
 	m := full()
 	m["EMBEDDING_MODEL"], m["LISTEN_ADDR"], m["AWS_REGION"], m["HELPDESK_URL"] = "ruri-v3-310m", ":9000", "us-west-2", "https://help.example.com"
-	c, err := loadConfig(env(m))
+	c, err := loadConfig(env(m), serveRequired)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestLoadConfigRejectsMissingRequired(t *testing.T) {
 	for _, k := range []string{"DATABASE_URL", "TEI_EMBED_URL", "RERANK_MODEL_ARN"} {
 		m := full()
 		delete(m, k)
-		if _, err := loadConfig(env(m)); err == nil || !strings.Contains(err.Error(), k) {
+		if _, err := loadConfig(env(m), serveRequired); err == nil || !strings.Contains(err.Error(), k) {
 			t.Errorf("without %s: err = %v", k, err)
 		}
 	}
@@ -49,7 +49,7 @@ func TestLoadConfigRejectsMissingRequired(t *testing.T) {
 func TestLoadConfigRejectsUnknownModel(t *testing.T) {
 	m := full()
 	m["EMBEDDING_MODEL"] = "ruri-v3-70m"
-	if _, err := loadConfig(env(m)); err == nil {
+	if _, err := loadConfig(env(m), serveRequired); err == nil {
 		t.Fatal("want an error for an unknown model")
 	}
 }
@@ -57,6 +57,25 @@ func TestLoadConfigRejectsUnknownModel(t *testing.T) {
 func TestRunServeWithoutConfigFails(t *testing.T) {
 	var stderr bytes.Buffer
 	if got := run([]string{"serve"}, env(map[string]string{}), &bytes.Buffer{}, &stderr); got != 2 || !strings.Contains(stderr.String(), "DATABASE_URL") {
+		t.Fatalf("exit = %d, stderr = %q", got, stderr.String())
+	}
+}
+
+func TestLoadNeedsNoRerankARNAndDefaultsToPinnedSource(t *testing.T) {
+	m := full()
+	delete(m, "RERANK_MODEL_ARN")
+	c, err := loadConfig(env(m), loadRequired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(c.Source, "a9fd35ae0f7d984cef7c054cfa6ae68bc7b5d354") {
+		t.Fatalf("source = %q, want the pinned dataset", c.Source)
+	}
+}
+
+func TestRunLoadWithoutTEIFails(t *testing.T) {
+	var stderr bytes.Buffer
+	if got := run([]string{"load"}, env(map[string]string{"DATABASE_URL": "x"}), &bytes.Buffer{}, &stderr); got != 2 || !strings.Contains(stderr.String(), "TEI_EMBED_URL") {
 		t.Fatalf("exit = %d, stderr = %q", got, stderr.String())
 	}
 }

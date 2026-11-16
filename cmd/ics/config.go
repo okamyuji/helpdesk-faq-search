@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os/signal"
@@ -15,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/okamyuji/helpdesk-faq-search/internal/embed"
+	"github.com/okamyuji/helpdesk-faq-search/internal/ingest"
+	"github.com/okamyuji/helpdesk-faq-search/internal/load"
 	"github.com/okamyuji/helpdesk-faq-search/internal/rerank"
 	"github.com/okamyuji/helpdesk-faq-search/internal/search"
 	"github.com/okamyuji/helpdesk-faq-search/internal/store"
@@ -22,10 +25,15 @@ import (
 )
 
 type cfg struct {
-	DatabaseURL, TEIURL, RerankARN, Model, Addr, Region, HelpdeskURL string
+	DatabaseURL, TEIURL, RerankARN, Model, Addr, Region, HelpdeskURL, Source string
 }
 
-func loadConfig(getenv func(string) string) (cfg, error) {
+var (
+	serveRequired = []string{"DATABASE_URL", "TEI_EMBED_URL", "RERANK_MODEL_ARN"}
+	loadRequired  = []string{"DATABASE_URL", "TEI_EMBED_URL"}
+)
+
+func loadConfig(getenv func(string) string, required []string) (cfg, error) {
 	or := func(k, def string) string {
 		if v := getenv(k); v != "" {
 			return v
@@ -34,8 +42,8 @@ func loadConfig(getenv func(string) string) (cfg, error) {
 	}
 	c := cfg{DatabaseURL: getenv("DATABASE_URL"), TEIURL: getenv("TEI_EMBED_URL"), RerankARN: getenv("RERANK_MODEL_ARN"),
 		Model: or("EMBEDDING_MODEL", "ruri-v3-30m"), Addr: or("LISTEN_ADDR", ":8080"), Region: or("AWS_REGION", "ap-northeast-1"),
-		HelpdeskURL: or("HELPDESK_URL", "mailto:helpdesk@example.com")}
-	for _, k := range []string{"DATABASE_URL", "TEI_EMBED_URL", "RERANK_MODEL_ARN"} {
+		HelpdeskURL: or("HELPDESK_URL", "mailto:helpdesk@example.com"), Source: or("DATA_SOURCE", load.DefaultSource)}
+	for _, k := range required {
 		if getenv(k) == "" {
 			return c, fmt.Errorf("%s is required", k)
 		}
@@ -77,4 +85,31 @@ func serve(c cfg) error {
 		return err
 	}
 	return nil
+}
+
+// shortcut: untested wiring; Task 10 runs it against a real PostgreSQL and TEI.
+func loadAll(c cfg, stdout io.Writer) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	src, err := load.Open(ctx, c.Source)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = src.Close() }()
+	fs, err := ingest.ReadJSONL(src)
+	if err != nil {
+		return err
+	}
+	db, err := pgxpool.New(ctx, c.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	st, err := load.Run(ctx, db, &embed.Client{BaseURL: c.TEIURL}, c.Model, fs)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "load model=%s faqs=%d texts=%d embed_seconds=%.1f texts_per_second=%.1f\n",
+		c.Model, st.FAQs, st.Texts, st.EmbedTime.Seconds(), st.PerSecond)
+	return err
 }
