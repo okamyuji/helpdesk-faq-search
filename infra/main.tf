@@ -77,24 +77,25 @@ resource "aws_db_subnet_group" "db" {
 }
 
 resource "aws_db_instance" "db" {
-  count                        = var.db_enabled ? 1 : 0
-  identifier                   = local.name
-  engine                       = "postgres"
-  engine_version               = "18.6"
-  instance_class               = "db.t4g.micro"
-  allocated_storage            = 20
-  storage_type                 = "gp3"
-  db_name                      = "faq"
-  username                     = "faq"
-  manage_master_user_password  = true
-  snapshot_identifier          = var.restore_snapshot_id
-  db_subnet_group_name         = aws_db_subnet_group.db.name
-  vpc_security_group_ids       = [aws_security_group.db.id]
-  publicly_accessible          = false
-  storage_encrypted            = true
-  backup_retention_period      = 0
-  skip_final_snapshot          = var.skip_final_snapshot
-  final_snapshot_identifier    = "${local.name}-final"
+  count                       = var.db_enabled ? 1 : 0
+  identifier                  = local.name
+  engine                      = "postgres"
+  engine_version              = "18.6"
+  instance_class              = "db.t4g.micro"
+  allocated_storage           = 20
+  storage_type                = "gp3"
+  db_name                     = "faq"
+  username                    = "faq"
+  manage_master_user_password = true
+  snapshot_identifier         = var.restore_snapshot_id
+  db_subnet_group_name        = aws_db_subnet_group.db.name
+  vpc_security_group_ids      = [aws_security_group.db.id]
+  publicly_accessible         = false
+  storage_encrypted           = true
+  backup_retention_period     = 0
+  skip_final_snapshot         = var.skip_final_snapshot
+  # A restored database must not reuse the snapshot name it came from, or the next destroy fails with DBSnapshotAlreadyExists.
+  final_snapshot_identifier    = "${local.name}-final-${substr(md5(var.restore_snapshot_id), 0, 8)}"
   apply_immediately            = true
   auto_minor_version_upgrade   = false
   copy_tags_to_snapshot        = true
@@ -243,6 +244,8 @@ resource "aws_ecs_service" "app" {
   desired_count          = var.app_desired_count
   launch_type            = "FARGATE"
   enable_execute_command = true
+  # ECS does not tag tasks by default; without this, the Project-filtered budget misses the Fargate cost.
+  propagate_tags = "SERVICE"
   network_configuration {
     subnets          = data.aws_subnets.default.ids
     security_groups  = [aws_security_group.app.id]

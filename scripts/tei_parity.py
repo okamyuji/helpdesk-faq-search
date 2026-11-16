@@ -47,7 +47,12 @@ def main() -> int:
         res = requests.post(f"{url}/embed", json={"inputs": inputs, "normalize": True}, timeout=120)
         res.raise_for_status()
         got = np.asarray(res.json(), dtype=np.float32)
-        worst = min(worst, float(np.min(np.sum(ref * got, axis=1))))
+        cos = np.sum(ref * got, axis=1)
+        # min() ignores NaN, so a broken embedding would otherwise pass.
+        if not (np.isfinite(ref).all() and np.isfinite(got).all() and np.isfinite(cos).all()):
+            print(f"non-finite values for prefix {prefix!r}")
+            return 1
+        worst = min(worst, float(np.min(cos)))
     print(f"min cosine {worst:.5f}")
     return 0 if worst >= 0.99 else 1
 

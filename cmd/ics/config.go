@@ -74,18 +74,20 @@ func serve(c cfg) error {
 		return search.Run(ctx, deps, method, c.Model, q)
 	}}
 	srv := &http.Server{Addr: c.Addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	shutdown := make(chan error, 1)
 	go func() {
 		<-ctx.Done()
 		// ECS sends SIGTERM before stopping the task; let in-flight searches finish.
 		shut, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(shut)
+		shutdown <- srv.Shutdown(shut)
 	}()
 	log.Printf("listening on %s (model %s)", c.Addr, c.Model)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-	return nil
+	// ListenAndServe returns as soon as Shutdown starts; wait until in-flight requests are done.
+	return <-shutdown
 }
 
 // shortcut: untested wiring; the end-to-end run checks it against a real PostgreSQL and TEI.

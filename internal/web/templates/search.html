@@ -6,8 +6,11 @@
 <title>よくある質問の検索</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.7; color: #1f2328; background: #fff; }
-  form { display: flex; gap: .5rem; flex-wrap: wrap; }
-  input[name=q] { flex: 1 1 20rem; padding: .5rem; font-size: 1rem; }
+  form { display: flex; gap: .5rem; flex-wrap: wrap; align-items: stretch; }
+  form label:not([hidden]) { display: flex; align-items: center; gap: .5rem; }
+  input, select, button { font: inherit; font-size: 1rem; padding: .5rem; border: 1px solid #d1d9e0; border-radius: 6px; background: #fff; color: inherit; }
+  input[name=q] { flex: 1 1 20rem; }
+  button { padding: .5rem 1rem; background: #f6f8fa; cursor: pointer; }
   ol { padding-left: 1.5rem; }
   li { margin: 1.25rem 0; }
   .q { font-weight: 600; }

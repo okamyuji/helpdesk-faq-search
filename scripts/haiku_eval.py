@@ -3,7 +3,7 @@
 Uses the Anthropic Claude API (model id claude-haiku-5-5), not Amazon Bedrock.
 The API key is read from the file named by ANTHROPIC_API_KEY_FILE so it never appears on a command line.
 One call sends about 3,200 input tokens and returns about 13 output tokens: roughly 0.00033 USD
-at 0.10 / 0.50 USD per million input / output tokens. A full run of both modes is 600 calls, about 0.20 USD.
+at 0.10 / 0.50 USD per million input / output tokens. A full run of both modes is 600 calls (select 200, abstain 400), about 0.20 USD.
 
 Candidates are the 30 nearest qa_doc embeddings of ruri-v3-30m, reranked by ruri-v3-reranker-310m (the
 local reranker of ADR 0012's comparison), then the top 10 go to Haiku with their full answers.
@@ -46,28 +46,33 @@ SCHEMA = {"type": "object", "properties": {"answered": {"type": "boolean"}, "ids
           "required": ["answered", "ids"], "additionalProperties": False}
 
 def ask(q, ids):
+    """Returns (status, picked ids, usage, seconds); status is "answered", "none", or "refused"."""
     lines = [f"[{n}] 質問: {docs[i][0]} / 回答: {docs[i][1]}" for n, i in enumerate(ids)]
     t = time.time()
     r = client.messages.create(model="claude-haiku-5-5", max_tokens=256, system=SYSTEM, thinking={"type": "disabled"},
                                output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
                                messages=[{"role": "user", "content": "問い合わせ: " + q + "\n\n候補:\n" + "\n".join(lines)}])
     dt = time.time() - t
-    if r.stop_reason == "refusal":
-        return False, [], r.usage, dt
+    if r.stop_reason == "refusal":  # a safety stop, not a judgment that no candidate answers
+        return "refused", [], r.usage, dt
     o = json.loads(r.content[0].text)
-    return o["answered"], [ids[n] for n in o["ids"] if 0 <= n < len(ids)], r.usage, dt
+    return ("answered" if o["answered"] else "none"), [ids[n] for n in o["ids"] if 0 <= n < len(ids)], r.usage, dt
 
+# select: the correct FAQ may be among the candidates. abstain: both with it ("present") and without it ("absent").
+conditions = ["select"] if MODE == "select" else ["present", "absent"]
 rows = [l.rstrip("\n").split("\t") for l in open(PARAPHRASES, encoding="utf-8")]
 for col, label in ((1, "colloquial"), (2, "short")):
-    first = said_none = 0
-    tokens, lat = [], []
-    for row in rows:
-        target, q = int(row[0]), row[col]
-        ids = candidates(q, drop=target if MODE == "abstain" else None)
-        answered, picked, usage, dt = ask(q, ids)
-        tokens.append(usage.input_tokens); lat.append(dt)
-        first += bool(picked) and picked[0] == target
-        said_none += not answered
-    n = len(rows); lat.sort()
-    metric = f"first_pick_correct={first / n:.2f}" if MODE == "select" else f"said_no_answer={said_none / n:.2f}"
-    print(f"{MODE}\t{label}\tn={n}\t{metric}\tinput_tokens={st.mean(tokens):.0f}\tp50={lat[n // 2]:.2f}s", flush=True)
+    for cond in conditions:
+        first = said_none = refused = 0
+        tokens, lat = [], []
+        for row in rows:
+            target, q = int(row[0]), row[col]
+            ids = candidates(q, drop=target if cond == "absent" else None)
+            status, picked, usage, dt = ask(q, ids)
+            tokens.append(usage.input_tokens); lat.append(dt)
+            first += bool(picked) and picked[0] == target
+            said_none += status == "none"
+            refused += status == "refused"
+        n = len(rows); lat.sort()
+        metric = f"said_no_answer={said_none / n:.2f}" if cond == "absent" else f"first_pick_correct={first / n:.2f}\tsaid_no_answer={said_none / n:.2f}"
+        print(f"{MODE}\t{cond}\t{label}\tn={n}\t{metric}\trefused={refused}\tinput_tokens={st.mean(tokens):.0f}\tp50={lat[n // 2]:.2f}s", flush=True)

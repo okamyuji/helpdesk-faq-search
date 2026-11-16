@@ -154,17 +154,18 @@ func Vector(ctx context.Context, d Deps, model, field, q string, k int) ([]int, 
 		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL hnsw.ef_search = %d", max(k, 40))); err != nil {
 			return err
 		}
-		ids, err = queryIDs(ctx, tx, vectorSQL(dim, field), model, pgvector.NewVector(vecs[0]), k)
+		ids, err = queryIDs(ctx, tx, vectorSQL(model, dim, field), pgvector.NewVector(vecs[0]), k)
 		return err
 	})
 	return ids, err
 }
 
 // vectorSQL casts to the model's dimension to match the partial HNSW index; without it PostgreSQL scans every row.
-// The field is a literal so the planner can match the partial index; callers pass only values from store.Fields.
-func vectorSQL(dim int, field string) string {
-	return fmt.Sprintf(`SELECT faq_id FROM embeddings WHERE model_id = $1 AND field = '%s'
-ORDER BY embedding::vector(%d) <=> $2::vector(%d) LIMIT $3`, field, dim, dim)
+// Model and field are literals because a generic plan cannot match a partial index on a parameter;
+// callers pass only models that store.Dim accepts and values from store.Fields.
+func vectorSQL(model string, dim int, field string) string {
+	return fmt.Sprintf(`SELECT faq_id FROM embeddings WHERE model_id = '%s' AND field = '%s'
+ORDER BY embedding::vector(%d) <=> $1::vector(%d) LIMIT $2`, model, field, dim, dim)
 }
 
 func keywordIDs(ctx context.Context, db *pgxpool.Pool, q string, k int) ([]int, error) {

@@ -58,7 +58,9 @@ func evalAll(c cfg, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	eval.WriteLine(stdout, "E1", "vector", r)
+	if err := eval.WriteLine(stdout, "E1", "vector", r); err != nil {
+		return err
+	}
 	sets := map[string]func(eval.Paraphrase) string{"E2": func(p eval.Paraphrase) string { return p.Colloquial }, "E3": func(p eval.Paraphrase) string { return p.Short }}
 	for _, set := range []string{"E2", "E3"} {
 		cases := make([]eval.Case, len(ps))
@@ -84,7 +86,9 @@ func evalAll(c cfg, stdout io.Writer) error {
 			if err != nil {
 				return err
 			}
-			eval.WriteLine(stdout, set, m, r)
+			if err := eval.WriteLine(stdout, set, m, r); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -112,7 +112,8 @@ func WriteHeader(w io.Writer, model string) error {
 }
 
 // WriteLine prints one tab-separated result row.
-func WriteLine(w io.Writer, set, method string, r Report) {
-	_, _ = fmt.Fprintf(w, "%s\t%s\tn=%d\tR@1=%.2f\tR@5=%.2f\tR@10=%.2f\tMRR@10=%.3f\tp50=%dms\tp95=%dms\tfailures=%d\n",
+func WriteLine(w io.Writer, set, method string, r Report) error {
+	_, err := fmt.Fprintf(w, "%s\t%s\tn=%d\tR@1=%.2f\tR@5=%.2f\tR@10=%.2f\tMRR@10=%.3f\tp50=%dms\tp95=%dms\tfailures=%d\n",
 		set, method, r.N, r.R1, r.R5, r.R10, r.MRR, r.P50.Milliseconds(), r.P95.Milliseconds(), r.Failures)
+	return err
 }

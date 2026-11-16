@@ -105,20 +105,33 @@ func TestVectorReturnsTop10ByDistance(t *testing.T) {
 	}
 }
 
-func TestVectorQueryUsesHNSWIndex(t *testing.T) {
+// forbidSeqScan makes every new connection of db avoid sequential scans; the tables are tiny, so the planner would scan them.
+func forbidSeqScan(t *testing.T, db *pgxpool.Pool) {
+	t.Helper()
+	if _, err := db.Exec(context.Background(), "DO $$BEGIN EXECUTE format('ALTER DATABASE %I SET enable_seqscan = off', current_database()); END$$"); err != nil {
+		t.Fatal(err)
+	}
+	db.Reset()
+}
+
+// The cached statement may switch to a generic plan after five runs; that plan must still match the partial index.
+func TestVectorQueryUsesHNSWIndexInGenericPlan(t *testing.T) {
 	ctx := context.Background()
 	db := seed(t, 40, plain)
+	forbidSeqScan(t, db)
 	conn, err := db.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Release()
-	// The table is tiny, so forbid sequential scans to see which index the planner can use.
-	if _, err := conn.Exec(ctx, "SET enable_seqscan = off"); err != nil {
-		t.Fatal(err)
+	for _, q := range []string{"SET plan_cache_mode = force_generic_plan", "PREPARE v AS " + vectorSQL(model, 256, "qa_doc")} {
+		if _, err := conn.Exec(ctx, q); err != nil {
+			t.Fatal(err)
+		}
 	}
 	var plan strings.Builder
-	rows, err := conn.Query(ctx, "EXPLAIN "+vectorSQL(256, "qa_doc"), model, pgvector.NewVector(at(0)), 10)
+	// EXPLAIN takes no bind parameters, so the vector goes in as text.
+	rows, err := conn.Query(ctx, fmt.Sprintf("EXPLAIN EXECUTE v('%s', 10)", pgvector.NewVector(at(0)).String()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,6 +142,9 @@ func TestVectorQueryUsesHNSWIndex(t *testing.T) {
 		}
 		plan.WriteString(line + "\n")
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(plan.String(), "emb_30m_qa_doc_hnsw") {
 		t.Fatalf("plan does not use the HNSW index:\n%s", plan.String())
 	}
@@ -136,6 +152,8 @@ func TestVectorQueryUsesHNSWIndex(t *testing.T) {
 
 func TestVectorReturnsMoreThanEfSearchDefault(t *testing.T) {
 	db := seed(t, 120, plain)
+	// Through the index, HNSW stops at hnsw.ef_search rows; a sequential scan would hide that limit.
+	forbidSeqScan(t, db)
 	got, err := Vector(context.Background(), Deps{DB: db, Embed: &fakeEmbed{}}, model, "qa_doc", "q", rrfDepth)
 	if err != nil {
 		t.Fatal(err)

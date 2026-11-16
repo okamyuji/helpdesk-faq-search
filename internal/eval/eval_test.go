@@ -87,7 +87,9 @@ func TestWriteReportIncludesAttribution(t *testing.T) {
 	if err := WriteHeader(&b, "ruri-v3-30m"); err != nil {
 		t.Fatal(err)
 	}
-	WriteLine(&b, "E2", "rerank", Report{N: 100, R1: 0.83, P50: 200 * time.Millisecond})
+	if err := WriteLine(&b, "E2", "rerank", Report{N: 100, R1: 0.83, P50: 200 * time.Millisecond}); err != nil {
+		t.Fatal(err)
+	}
 	out := b.String()
 	for _, want := range []string{"JaGovFaqs-22k", "CC BY 4.0", "ruri-v3-30m", "E2\trerank\tn=100\tR@1=0.83", "p50=200ms"} {
 		if !strings.Contains(out, want) {
@@ -107,5 +109,15 @@ func TestMeasureWithNoCasesReportsZeros(t *testing.T) {
 	r, err := Measure(context.Background(), nil, func(context.Context, string) ([]int, error) { return nil, nil }, 0)
 	if err != nil || r != (Report{}) {
 		t.Fatalf("report = %+v, err = %v; want zeros, not NaN", r, err)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
+
+func TestWriteLineReturnsWriteError(t *testing.T) {
+	if err := WriteLine(failingWriter{}, "E2", "rerank", Report{}); err == nil {
+		t.Fatal("want the writer's error, got nil")
 	}
 }
