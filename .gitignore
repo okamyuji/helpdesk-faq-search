@@ -10,3 +10,5 @@ data.jsonl
 /data/
 /eval-out/
 /ics
+__pycache__/
+*.tfvars

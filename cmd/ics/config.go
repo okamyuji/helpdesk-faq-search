@@ -55,7 +55,7 @@ func loadConfig(getenv func(string) string, required []string) (cfg, error) {
 	return c, nil
 }
 
-// shortcut: untested wiring of real clients; Task 10 checks it end to end with docker run.
+// shortcut: untested wiring of real clients; the end-to-end run with docker checks it.
 func serve(c cfg) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -88,7 +88,7 @@ func serve(c cfg) error {
 	return nil
 }
 
-// shortcut: untested wiring; Task 10 runs it against a real PostgreSQL and TEI.
+// shortcut: untested wiring; the end-to-end run checks it against a real PostgreSQL and TEI.
 func loadAll(c cfg, stdout io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
