@@ -27,7 +27,7 @@ tei-parity: tei-image
 	docker run -d --name ics-tei-parity -p 127.0.0.1:18080:80 ics-tei:$(MODEL) >/dev/null
 	for i in $$(seq 1 120); do curl -sf localhost:18080/health >/dev/null && break; sleep 1; done
 	curl -sf localhost:18080/health >/dev/null || { docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' ics-tei-parity; docker logs ics-tei-parity 2>&1 | tail -20; docker rm -f ics-tei-parity >/dev/null; exit 1; }
-	$(VENV)/bin/python -I scripts/tei_parity.py $(MODEL) http://localhost:18080; rc=$$?; docker rm -f ics-tei-parity >/dev/null; exit $$rc
+	$(VENV)/bin/python -I scripts/tei_parity.py $(MODEL) http://localhost:18080 $(REV_$(MODEL)); rc=$$?; docker rm -f ics-tei-parity >/dev/null; exit $$rc
 
 .PHONY: check
 check: pg-image

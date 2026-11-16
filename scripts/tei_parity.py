@@ -18,8 +18,8 @@ PREFIXES = ["", "検索クエリ: ", "検索文書: "]
 QUERIES = ["週末の予定", "本を買った場所", "朝の運動", "家の片付け", "空に見えたもの"]
 
 
-def rerank_parity(model: str, url: str) -> int:
-    ce = CrossEncoder(f"cl-nagoya/{model}", device="cpu")
+def rerank_parity(model: str, url: str, revision: str) -> int:
+    ce = CrossEncoder(f"cl-nagoya/{model}", revision=revision, device="cpu")
     mismatches = 0
     for q in QUERIES:
         texts = TEXTS[:10]
@@ -36,10 +36,11 @@ def rerank_parity(model: str, url: str) -> int:
 
 
 def main() -> int:
-    model, url = sys.argv[1], sys.argv[2]
+    # The revision is the one the TEI image was built from, so both sides use the same weights.
+    model, url, revision = sys.argv[1], sys.argv[2], sys.argv[3]
     if "reranker" in model:
-        return rerank_parity(model, url)
-    st = SentenceTransformer(f"cl-nagoya/{model}", device="cpu")
+        return rerank_parity(model, url, revision)
+    st = SentenceTransformer(f"cl-nagoya/{model}", revision=revision, device="cpu")
     worst = 1.0
     for prefix in PREFIXES:
         inputs = [prefix + t for t in TEXTS]

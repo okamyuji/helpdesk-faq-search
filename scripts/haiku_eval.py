@@ -16,15 +16,21 @@ Run after `ics load` with ruri-v3-30m:
   DATABASE_URL=... ANTHROPIC_API_KEY_FILE=~/.config/anthropic/api_key \
     python -I scripts/haiku_eval.py {select|abstain} eval/paraphrases.tsv
 """
-import json, os, statistics as st, sys, time
+import argparse, json, os, statistics as st, time
 
 import anthropic, psycopg
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-MODE, PARAPHRASES = sys.argv[1], sys.argv[2]
+# Parse before loading models or opening the API client, so a mistyped mode costs nothing.
+_p = argparse.ArgumentParser(description="Measure Claude Haiku against the reranker (ADR 0011).")
+_p.add_argument("mode", choices=("select", "abstain"))
+_p.add_argument("paraphrases")
+_a = _p.parse_args()
+MODE, PARAPHRASES = _a.mode, _a.paraphrases
 con = psycopg.connect(os.environ["DATABASE_URL"])
-emb = SentenceTransformer("cl-nagoya/ruri-v3-30m")
-rr = CrossEncoder("cl-nagoya/ruri-v3-reranker-310m", max_length=512)
+# Same revisions as REV_ruri-v3-30m and REV_ruri-v3-reranker-310m in the Makefile.
+emb = SentenceTransformer("cl-nagoya/ruri-v3-30m", revision="24899e5de370b56d179604a007c0d727bf144504")
+rr = CrossEncoder("cl-nagoya/ruri-v3-reranker-310m", revision="bb46934ee9ed09f850b9fcff17501b3ef7ddb2b3", max_length=512)
 client = anthropic.Anthropic(api_key=open(os.path.expanduser(os.environ["ANTHROPIC_API_KEY_FILE"])).read().strip())
 docs = {i: (q, a) for i, q, a in con.execute("SELECT faq_id, question, answer FROM faqs")}
 
@@ -56,7 +62,9 @@ def ask(q, ids):
     if r.stop_reason == "refusal":  # a safety stop, not a judgment that no candidate answers
         return "refused", [], r.usage, dt
     o = json.loads(r.content[0].text)
-    return ("answered" if o["answered"] else "none"), [ids[n] for n in o["ids"] if 0 <= n < len(ids)], r.usage, dt
+    if not o["answered"]:  # the schema allows ids with answered=false; such picks must not count as a first pick
+        return "none", [], r.usage, dt
+    return "answered", [ids[n] for n in o["ids"] if 0 <= n < len(ids)], r.usage, dt
 
 # select: the correct FAQ may be among the candidates. abstain: both with it ("present") and without it ("absent").
 conditions = ["select"] if MODE == "select" else ["present", "absent"]
